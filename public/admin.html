@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Admin — Interview Bookings</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --bg: #fafafa;
+    --card: #ffffff;
+    --accent: #2563eb;
+    --accent-dark: #1d4ed8;
+    --danger: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  .wrap {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+  header {
+    margin-bottom: 32px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  h1 {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0 0 6px;
+    letter-spacing: -0.02em;
+  }
+  .sub {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0;
+  }
+  button {
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 6px;
+    padding: 8px 14px;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-refresh {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .btn-refresh:hover { background: #f0f0f0; }
+  .btn-danger {
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid #fecaca;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .btn-danger:hover { background: #fef2f2; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  th, td {
+    text-align: left;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: #f9fafb;
+  }
+  tr:last-child td { border-bottom: none; }
+  .empty-note {
+    color: var(--muted);
+    font-size: 14px;
+    padding: 20px;
+    text-align: center;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .loading { color: var(--muted); font-size: 14px; padding: 20px 0; }
+  .count-badge {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  /* Password gate */
+  .gate {
+    max-width: 360px;
+    margin: 120px auto;
+    text-align: center;
+    padding: 0 24px;
+  }
+  .gate h1 { font-size: 20px; margin-bottom: 8px; }
+  .gate p { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+  .gate input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    margin-bottom: 12px;
+  }
+  .gate input:focus { outline: none; border-color: var(--accent); }
+  .gate button {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+  .gate button:hover { background: var(--accent-dark); }
+  .gate .error { color: var(--danger); font-size: 13px; margin-top: 10px; display: none; }
+</style>
+</head>
+<body>
+
+<div class="gate" id="gate">
+  <h1>Admin sign-in</h1>
+  <p>Enter the admin password to view and manage interview bookings.</p>
+  <input type="password" id="passwordInput" placeholder="Password" autocomplete="current-password" />
+  <button id="signInBtn">Sign in</button>
+  <p class="error" id="gateError">Incorrect password.</p>
+</div>
+
+<div class="wrap" id="dashboard" style="display:none;">
+  <header>
+    <div>
+      <h1>Interview Bookings</h1>
+      <p class="sub">Everyone who has booked a slot. All times Eastern (EST).</p>
+    </div>
+    <button class="btn-refresh" id="refreshBtn">Refresh</button>
+  </header>
+  <div id="content"><div class="loading">Loading…</div></div>
+</div>
+
+<script>
+  const RANGES = [
+    { date: "2026-07-22", label: "Wednesday, Jul 22", start: "19:00", end: "20:00" },
+    { date: "2026-07-23", label: "Thursday, Jul 23", start: "12:00", end: "17:00" },
+    { date: "2026-07-28", label: "Tuesday, Jul 28", start: "12:00", end: "15:00" },
+    { date: "2026-07-30", label: "Thursday, Jul 30", start: "15:00", end: "18:00" },
+    { date: "2026-07-31", label: "Friday, Jul 31", start: "10:00", end: "18:00" },
+    { date: "2026-08-03", label: "Monday, Aug 3", start: "10:00", end: "18:00" },
+  ];
+
+  function toMinutes(hhmm) {
+    const [h, m] = hhmm.split(":").map(Number);
+    return h * 60 + m;
+  }
+  function minutesToLabel(mins) {
+    let h = Math.floor(mins / 60);
+    const m = mins % 60;
+    const ampm = h >= 12 ? "PM" : "AM";
+    let h12 = h % 12;
+    if (h12 === 0) h12 = 12;
+    return `${h12}:${m.toString().padStart(2, "0")} ${ampm}`;
+  }
+  function minutesToId(mins) {
+    const h = Math.floor(mins / 60).toString().padStart(2, "0");
+    const m = (mins % 60).toString().padStart(2, "0");
+    return `${h}:${m}`;
+  }
+  function idToLabelMap() {
+    const map = {};
+    for (const r of RANGES) {
+      const startMin = toMinutes(r.start);
+      const endMin = toMinutes(r.end);
+      for (let t = startMin; t < endMin; t += 30) {
+        const id = `${r.date}T${minutesToId(t)}`;
+        map[id] = `${r.label}, ${minutesToLabel(t)} – ${minutesToLabel(t + 30)}`;
+      }
+    }
+    return map;
+  }
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  let adminKey = sessionStorage.getItem("adminKey") || null;
+
+  const gate = document.getElementById("gate");
+  const dashboard = document.getElementById("dashboard");
+  const passwordInput = document.getElementById("passwordInput");
+  const signInBtn = document.getElementById("signInBtn");
+  const gateError = document.getElementById("gateError");
+  const refreshBtn = document.getElementById("refreshBtn");
+  const content = document.getElementById("content");
+
+  async function tryLoad(key) {
+    const res = await fetch("/api/slots", {
+      cache: "no-store",
+      headers: { "X-Admin-Key": key },
+    });
+    if (res.status === 401) return { ok: false };
+    if (!res.ok) return { ok: false, networkError: true };
+    const data = await res.json();
+    return { ok: true, data };
+  }
+
+  async function signIn() {
+    const key = passwordInput.value.trim();
+    if (!key) return;
+    signInBtn.disabled = true;
+    signInBtn.textContent = "Checking…";
+    const result = await tryLoad(key);
+    signInBtn.disabled = false;
+    signInBtn.textContent = "Sign in";
+    if (!result.ok) {
+      gateError.style.display = "block";
+      return;
+    }
+    adminKey = key;
+    sessionStorage.setItem("adminKey", key);
+    gateError.style.display = "none";
+    gate.style.display = "none";
+    dashboard.style.display = "block";
+    renderData(result.data);
+  }
+
+  signInBtn.addEventListener("click", signIn);
+  passwordInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") signIn();
+  });
+
+  async function refresh() {
+    if (!adminKey) return;
+    content.innerHTML = '<div class="loading">Loading…</div>';
+    const result = await tryLoad(adminKey);
+    if (!result.ok) {
+      // Key stopped working — send back to the gate.
+      adminKey = null;
+      sessionStorage.removeItem("adminKey");
+      dashboard.style.display = "none";
+      gate.style.display = "block";
+      gateError.style.display = "block";
+      return;
+    }
+    renderData(result.data);
+  }
+
+  function renderData(data) {
+    const labelMap = idToLabelMap();
+    const entries = Object.entries(data).sort((a, b) => a[0].localeCompare(b[0]));
+
+    if (entries.length === 0) {
+      content.innerHTML = '<p class="empty-note">No slots booked yet.</p>';
+      return;
+    }
+
+    let html = `<p class="count-badge">${entries.length} slot${entries.length === 1 ? "" : "s"} booked</p>`;
+    html += '<table><thead><tr><th>Slot</th><th>Name</th><th>Email</th><th>Booked at</th><th></th></tr></thead><tbody>';
+    for (const [slotId, info] of entries) {
+      const label = labelMap[slotId] || slotId;
+      const bookedAt = info.bookedAt ? new Date(info.bookedAt).toLocaleString("en-US", { timeZone: "America/New_York" }) : "";
+      html += `<tr>
+        <td>${escapeHtml(label)}</td>
+        <td>${escapeHtml(info.name || "")}</td>
+        <td>${escapeHtml(info.email || "")}</td>
+        <td>${escapeHtml(bookedAt)}</td>
+        <td><button class="btn-danger" data-slot-id="${escapeHtml(slotId)}">Cancel</button></td>
+      </tr>`;
+    }
+    html += "</tbody></table>";
+    content.innerHTML = html;
+
+    content.querySelectorAll("[data-slot-id]").forEach((btn) => {
+      btn.addEventListener("click", () => cancelBooking(btn.getAttribute("data-slot-id")));
+    });
+  }
+
+  async function cancelBooking(slotId) {
+    if (!confirm("Cancel this booking? This can't be undone.")) return;
+    try {
+      const res = await fetch("/api/slots", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", "X-Admin-Key": adminKey },
+        body: JSON.stringify({ slotId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Could not cancel that booking.");
+        return;
+      }
+      await refresh();
+    } catch (e) {
+      alert("Network error while cancelling.");
+    }
+  }
+
+  refreshBtn.addEventListener("click", refresh);
+
+  // Auto sign-in if we already have a valid key from this session.
+  if (adminKey) {
+    tryLoad(adminKey).then((result) => {
+      if (result.ok) {
+        gate.style.display = "none";
+        dashboard.style.display = "block";
+        renderData(result.data);
+      } else {
+        sessionStorage.removeItem("adminKey");
+        adminKey = null;
+      }
+    });
+  }
+</script>
+</body>
+</html>

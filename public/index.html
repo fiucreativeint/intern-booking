@@ -172,55 +172,6 @@
   }
   .msg.error { color: var(--danger); display: block; }
   .msg.success { color: var(--success); display: block; }
-
-  /* Booked list */
-  .booked-section {
-    margin-top: 56px;
-    border-top: 1px solid var(--border);
-    padding-top: 32px;
-  }
-  .booked-section h2 {
-    font-size: 16px;
-    font-weight: 600;
-    margin: 0 0 4px;
-  }
-  .booked-section .sub { margin-bottom: 16px; }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 14px;
-  }
-  th, td {
-    text-align: left;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border);
-  }
-  th {
-    color: var(--muted);
-    font-weight: 500;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
-  .empty-note {
-    color: var(--muted);
-    font-size: 14px;
-    padding: 8px 0;
-  }
-  .refresh-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
-  }
-  .refresh-btn {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--muted);
-    font-size: 13px;
-    padding: 6px 12px;
-  }
-  .refresh-btn:hover { background: #f9fafb; }
   .loading { color: var(--muted); font-size: 14px; padding: 20px 0; }
 </style>
 </head>
@@ -233,17 +184,6 @@
 
   <div id="slotsContainer">
     <div class="loading">Loading available slots…</div>
-  </div>
-
-  <div class="booked-section">
-    <div class="refresh-row">
-      <div>
-        <h2>Booked slots</h2>
-        <p class="sub">Live list of everyone who has booked an interview.</p>
-      </div>
-      <button class="refresh-btn" id="refreshBtn">Refresh</button>
-    </div>
-    <div id="bookedList"></div>
   </div>
 </div>
 
@@ -322,7 +262,6 @@
   let selectedSlot = null;
 
   const slotsContainer = document.getElementById("slotsContainer");
-  const bookedListEl = document.getElementById("bookedList");
   const overlay = document.getElementById("overlay");
   const modalSlotInfo = document.getElementById("modalSlotInfo");
   const nameInput = document.getElementById("nameInput");
@@ -330,10 +269,11 @@
   const modalMsg = document.getElementById("modalMsg");
   const confirmBtn = document.getElementById("confirmBtn");
   const cancelBtn = document.getElementById("cancelBtn");
-  const refreshBtn = document.getElementById("refreshBtn");
 
   async function fetchBookings() {
     try {
+      // No admin key sent here, so the server only ever returns
+      // { slotId: { booked: true } } — never names or emails.
       const res = await fetch("/api/slots", { cache: "no-store" });
       if (!res.ok) throw new Error("Failed to load bookings");
       bookings = await res.json();
@@ -344,7 +284,6 @@
   }
 
   function render() {
-    // Slot grid
     slotsContainer.innerHTML = "";
     for (const day of days) {
       const block = document.createElement("div");
@@ -369,32 +308,6 @@
       block.appendChild(grid);
       slotsContainer.appendChild(block);
     }
-
-    // Booked list
-    const entries = Object.entries(bookings).sort((a, b) => a[0].localeCompare(b[0]));
-    if (entries.length === 0) {
-      bookedListEl.innerHTML = '<p class="empty-note">No slots booked yet.</p>';
-      return;
-    }
-    const idToLabel = {};
-    for (const day of days) {
-      for (const slot of day.slots) {
-        idToLabel[slot.id] = `${day.label}, ${slot.timeLabel}`;
-      }
-    }
-    let html = '<table><thead><tr><th>Slot</th><th>Name</th><th>Email</th></tr></thead><tbody>';
-    for (const [slotId, info] of entries) {
-      const label = idToLabel[slotId] || slotId;
-      html += `<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(info.name)}</td><td>${escapeHtml(info.email)}</td></tr>`;
-    }
-    html += "</tbody></table>";
-    bookedListEl.innerHTML = html;
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
   }
 
   function openModal(slot, dayLabel) {
@@ -466,8 +379,6 @@
       confirmBtn.textContent = "Confirm booking";
     }
   });
-
-  refreshBtn.addEventListener("click", fetchBookings);
 
   fetchBookings();
   setInterval(fetchBookings, 20000);
