@@ -1,12 +1,23 @@
 // Netlify Function backing the booking page.
 // Uses Netlify Blobs for shared, persistent storage across all visitors and deploys.
-// No external account or API keys needed — Blobs is provisioned automatically
-// for any site deployed on Netlify.
+//
+// This site's automatic Blobs context isn't being injected (MissingBlobsEnvironmentError),
+// so we configure the store manually using the site ID (not secret) and a
+// personal access token stored as the NETLIFY_BLOBS_TOKEN environment variable.
 
 const { getStore } = require("@netlify/blobs");
 
+const SITE_ID = "3550597f-cd21-4127-a054-9b44c93f42e7";
 const STORE_NAME = "interview-bookings";
 const KEY = "bookings";
+
+function getBookingsStore() {
+  return getStore({
+    name: STORE_NAME,
+    siteID: SITE_ID,
+    token: process.env.NETLIFY_BLOBS_TOKEN,
+  });
+}
 
 function corsHeaders() {
   return {
@@ -62,22 +73,28 @@ exports.handler = async (event) => {
     return { statusCode: 204, headers: corsHeaders(), body: "" };
   }
 
-  const store = getStore(STORE_NAME);
+  // Safe diagnostic — reports whether the server sees ADMIN_KEY/NETLIFY_BLOBS_TOKEN
+  // and whether the caller's key matches, without revealing actual values.
+  // Checked before touching Blobs so it still works even if Blobs is misconfigured.
+  if (
+    event.httpMethod === "GET" &&
+    event.queryStringParameters &&
+    event.queryStringParameters.debug === "1"
+  ) {
+    const provided = providedAdminKey(event);
+    return json(200, {
+      serverHasAdminKey: !!process.env.ADMIN_KEY,
+      serverKeyLength: (process.env.ADMIN_KEY || "").length,
+      serverHasBlobsToken: !!process.env.NETLIFY_BLOBS_TOKEN,
+      callerProvidedKey: !!provided,
+      callerKeyLength: (provided || "").length,
+      match: isAdmin(event),
+    });
+  }
+
+  const store = getBookingsStore();
 
   if (event.httpMethod === "GET") {
-    // Safe diagnostic — reports whether the server sees ADMIN_KEY and whether
-    // the caller's key matches, without ever revealing the actual value.
-    if (event.queryStringParameters && event.queryStringParameters.debug === "1") {
-      const provided = providedAdminKey(event);
-      return json(200, {
-        serverHasAdminKey: !!process.env.ADMIN_KEY,
-        serverKeyLength: (process.env.ADMIN_KEY || "").length,
-        callerProvidedKey: !!provided,
-        callerKeyLength: (provided || "").length,
-        match: isAdmin(event),
-      });
-    }
-
     const providedKey = providedAdminKey(event);
     if (providedKey && !isAdmin(event)) {
       return json(401, { error: "Incorrect admin password." });
