@@ -1,0 +1,9 @@
+{
+  "name": "intern-interview-booking",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static booking page for intern interview slots with Netlify Functions + Netlify Blobs shared storage.",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}

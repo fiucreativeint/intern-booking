@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Intern Interview Scheduling</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --bg: #fafafa;
+    --card: #ffffff;
+    --accent: #2563eb;
+    --accent-dark: #1d4ed8;
+    --taken: #f3f4f6;
+    --danger: #dc2626;
+    --success: #16a34a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  .wrap {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+  header {
+    margin-bottom: 40px;
+  }
+  h1 {
+    font-size: 26px;
+    font-weight: 600;
+    margin: 0 0 8px;
+    letter-spacing: -0.02em;
+  }
+  .sub {
+    color: var(--muted);
+    font-size: 15px;
+    margin: 0;
+  }
+  .day-block {
+    margin-bottom: 32px;
+  }
+  .day-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 12px;
+  }
+  .slot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+  }
+  .slot {
+    border: 1px solid var(--border);
+    background: var(--card);
+    border-radius: 8px;
+    padding: 12px 10px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, transform 0.1s;
+    color: var(--ink);
+  }
+  .slot:hover {
+    border-color: var(--accent);
+    background: #eff6ff;
+  }
+  .slot:active {
+    transform: scale(0.98);
+  }
+  .slot.taken {
+    background: var(--taken);
+    color: #9ca3af;
+    cursor: not-allowed;
+    border-color: var(--border);
+  }
+  .slot.taken:hover {
+    border-color: var(--border);
+    background: var(--taken);
+  }
+
+  /* Modal */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 50;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: #fff;
+    border-radius: 12px;
+    max-width: 400px;
+    width: 100%;
+    padding: 28px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+  }
+  .modal h2 {
+    font-size: 18px;
+    margin: 0 0 4px;
+  }
+  .modal .slot-info {
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  .field { margin-bottom: 14px; }
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+  input[type="text"], input[type="email"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 6px;
+    padding: 10px 16px;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    flex: 1;
+  }
+  .btn-primary:hover { background: var(--accent-dark); }
+  .btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
+  .btn-cancel {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-cancel:hover { background: #f9fafb; }
+  .msg {
+    font-size: 13px;
+    margin-top: 10px;
+    display: none;
+  }
+  .msg.error { color: var(--danger); display: block; }
+  .msg.success { color: var(--success); display: block; }
+
+  /* Booked list */
+  .booked-section {
+    margin-top: 56px;
+    border-top: 1px solid var(--border);
+    padding-top: 32px;
+  }
+  .booked-section h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+  .booked-section .sub { margin-bottom: 16px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .empty-note {
+    color: var(--muted);
+    font-size: 14px;
+    padding: 8px 0;
+  }
+  .refresh-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .refresh-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 13px;
+    padding: 6px 12px;
+  }
+  .refresh-btn:hover { background: #f9fafb; }
+  .loading { color: var(--muted); font-size: 14px; padding: 20px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Intern Interview Scheduling</h1>
+    <p class="sub">Pick an open 30-minute slot below. All times are Eastern (EST).</p>
+  </header>
+
+  <div id="slotsContainer">
+    <div class="loading">Loading available slots…</div>
+  </div>
+
+  <div class="booked-section">
+    <div class="refresh-row">
+      <div>
+        <h2>Booked slots</h2>
+        <p class="sub">Live list of everyone who has booked an interview.</p>
+      </div>
+      <button class="refresh-btn" id="refreshBtn">Refresh</button>
+    </div>
+    <div id="bookedList"></div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2>Confirm your interview slot</h2>
+    <p class="slot-info" id="modalSlotInfo"></p>
+    <div class="field">
+      <label for="nameInput">Full name</label>
+      <input type="text" id="nameInput" placeholder="Jane Doe" autocomplete="name" />
+    </div>
+    <div class="field">
+      <label for="emailInput">Email address</label>
+      <input type="email" id="emailInput" placeholder="jane@example.com" autocomplete="email" />
+    </div>
+    <div class="msg" id="modalMsg"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="cancelBtn">Cancel</button>
+      <button class="btn-primary" id="confirmBtn">Confirm booking</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const RANGES = [
+    { date: "2026-07-22", label: "Wednesday, Jul 22", start: "19:00", end: "20:00" },
+    { date: "2026-07-23", label: "Thursday, Jul 23", start: "12:00", end: "17:00" },
+    { date: "2026-07-28", label: "Tuesday, Jul 28", start: "12:00", end: "15:00" },
+    { date: "2026-07-30", label: "Thursday, Jul 30", start: "15:00", end: "18:00" },
+    { date: "2026-07-31", label: "Friday, Jul 31", start: "10:00", end: "18:00" },
+    { date: "2026-08-03", label: "Monday, Aug 3", start: "10:00", end: "18:00" },
+  ];
+
+  function toMinutes(hhmm) {
+    const [h, m] = hhmm.split(":").map(Number);
+    return h * 60 + m;
+  }
+
+  function minutesToLabel(mins) {
+    let h = Math.floor(mins / 60);
+    const m = mins % 60;
+    const ampm = h >= 12 ? "PM" : "AM";
+    let h12 = h % 12;
+    if (h12 === 0) h12 = 12;
+    return `${h12}:${m.toString().padStart(2, "0")} ${ampm}`;
+  }
+
+  function minutesToId(mins) {
+    const h = Math.floor(mins / 60).toString().padStart(2, "0");
+    const m = (mins % 60).toString().padStart(2, "0");
+    return `${h}:${m}`;
+  }
+
+  // Build full slot list: { id, date, label, timeLabel, startMin }
+  function buildSlots() {
+    const days = [];
+    for (const r of RANGES) {
+      const startMin = toMinutes(r.start);
+      const endMin = toMinutes(r.end);
+      const slots = [];
+      for (let t = startMin; t < endMin; t += 30) {
+        slots.push({
+          id: `${r.date}T${minutesToId(t)}`,
+          date: r.date,
+          timeLabel: `${minutesToLabel(t)} – ${minutesToLabel(t + 30)}`,
+          startMin: t,
+        });
+      }
+      days.push({ label: r.label, date: r.date, slots });
+    }
+    return days;
+  }
+
+  const days = buildSlots();
+  let bookings = {};
+  let selectedSlot = null;
+
+  const slotsContainer = document.getElementById("slotsContainer");
+  const bookedListEl = document.getElementById("bookedList");
+  const overlay = document.getElementById("overlay");
+  const modalSlotInfo = document.getElementById("modalSlotInfo");
+  const nameInput = document.getElementById("nameInput");
+  const emailInput = document.getElementById("emailInput");
+  const modalMsg = document.getElementById("modalMsg");
+  const confirmBtn = document.getElementById("confirmBtn");
+  const cancelBtn = document.getElementById("cancelBtn");
+  const refreshBtn = document.getElementById("refreshBtn");
+
+  async function fetchBookings() {
+    try {
+      const res = await fetch("/api/slots", { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to load bookings");
+      bookings = await res.json();
+    } catch (e) {
+      bookings = bookings || {};
+    }
+    render();
+  }
+
+  function render() {
+    // Slot grid
+    slotsContainer.innerHTML = "";
+    for (const day of days) {
+      const block = document.createElement("div");
+      block.className = "day-block";
+      const title = document.createElement("div");
+      title.className = "day-title";
+      title.textContent = day.label;
+      block.appendChild(title);
+
+      const grid = document.createElement("div");
+      grid.className = "slot-grid";
+      for (const slot of day.slots) {
+        const btn = document.createElement("div");
+        const isTaken = !!bookings[slot.id];
+        btn.className = "slot" + (isTaken ? " taken" : "");
+        btn.textContent = isTaken ? `${slot.timeLabel} · Booked` : slot.timeLabel;
+        if (!isTaken) {
+          btn.addEventListener("click", () => openModal(slot, day.label));
+        }
+        grid.appendChild(btn);
+      }
+      block.appendChild(grid);
+      slotsContainer.appendChild(block);
+    }
+
+    // Booked list
+    const entries = Object.entries(bookings).sort((a, b) => a[0].localeCompare(b[0]));
+    if (entries.length === 0) {
+      bookedListEl.innerHTML = '<p class="empty-note">No slots booked yet.</p>';
+      return;
+    }
+    const idToLabel = {};
+    for (const day of days) {
+      for (const slot of day.slots) {
+        idToLabel[slot.id] = `${day.label}, ${slot.timeLabel}`;
+      }
+    }
+    let html = '<table><thead><tr><th>Slot</th><th>Name</th><th>Email</th></tr></thead><tbody>';
+    for (const [slotId, info] of entries) {
+      const label = idToLabel[slotId] || slotId;
+      html += `<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(info.name)}</td><td>${escapeHtml(info.email)}</td></tr>`;
+    }
+    html += "</tbody></table>";
+    bookedListEl.innerHTML = html;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function openModal(slot, dayLabel) {
+    selectedSlot = slot;
+    modalSlotInfo.textContent = `${dayLabel}, ${slot.timeLabel} (EST)`;
+    nameInput.value = "";
+    emailInput.value = "";
+    modalMsg.className = "msg";
+    modalMsg.textContent = "";
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = "Confirm booking";
+    overlay.classList.add("open");
+    nameInput.focus();
+  }
+
+  function closeModal() {
+    overlay.classList.remove("open");
+    selectedSlot = null;
+  }
+
+  cancelBtn.addEventListener("click", closeModal);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeModal();
+  });
+
+  confirmBtn.addEventListener("click", async () => {
+    const name = nameInput.value.trim();
+    const email = emailInput.value.trim();
+    if (!name || !email) {
+      modalMsg.className = "msg error";
+      modalMsg.textContent = "Please enter both your name and email.";
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      modalMsg.className = "msg error";
+      modalMsg.textContent = "Please enter a valid email address.";
+      return;
+    }
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "Booking…";
+    modalMsg.className = "msg";
+    modalMsg.textContent = "";
+
+    try {
+      const res = await fetch("/api/slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slotId: selectedSlot.id, name, email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        modalMsg.className = "msg error";
+        modalMsg.textContent = data.error || "Something went wrong. Please try again.";
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "Confirm booking";
+        if (res.status === 409) {
+          await fetchBookings();
+        }
+        return;
+      }
+      modalMsg.className = "msg success";
+      modalMsg.textContent = "Slot booked! Closing…";
+      await fetchBookings();
+      setTimeout(closeModal, 900);
+    } catch (e) {
+      modalMsg.className = "msg error";
+      modalMsg.textContent = "Network error. Please try again.";
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "Confirm booking";
+    }
+  });
+
+  refreshBtn.addEventListener("click", fetchBookings);
+
+  fetchBookings();
+  setInterval(fetchBookings, 20000);
+</script>
+</body>
+</html>
