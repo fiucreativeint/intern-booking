@@ -25,9 +25,26 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+// Case-insensitive header lookup — some proxies/runtimes don't normalize
+// header key casing the way we'd expect.
+function getHeader(event, name) {
+  const target = name.toLowerCase();
+  const headers = event.headers || {};
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === target) return headers[key];
+  }
+  return undefined;
+}
+
+function providedAdminKey(event) {
+  const fromHeader = getHeader(event, "x-admin-key");
+  const fromQuery = event.queryStringParameters && event.queryStringParameters.adminKey;
+  return fromHeader || fromQuery || undefined;
+}
+
 function isAdmin(event) {
-  const key = event.headers["x-admin-key"] || event.headers["X-Admin-Key"];
-  return !!process.env.ADMIN_KEY && key === process.env.ADMIN_KEY;
+  const key = providedAdminKey(event);
+  return !!process.env.ADMIN_KEY && !!key && key === process.env.ADMIN_KEY;
 }
 
 // Strips name/email out of the booking map so the public slot grid can only
@@ -48,7 +65,20 @@ exports.handler = async (event) => {
   const store = getStore(STORE_NAME);
 
   if (event.httpMethod === "GET") {
-    const providedKey = event.headers["x-admin-key"] || event.headers["X-Admin-Key"];
+    // Safe diagnostic — reports whether the server sees ADMIN_KEY and whether
+    // the caller's key matches, without ever revealing the actual value.
+    if (event.queryStringParameters && event.queryStringParameters.debug === "1") {
+      const provided = providedAdminKey(event);
+      return json(200, {
+        serverHasAdminKey: !!process.env.ADMIN_KEY,
+        serverKeyLength: (process.env.ADMIN_KEY || "").length,
+        callerProvidedKey: !!provided,
+        callerKeyLength: (provided || "").length,
+        match: isAdmin(event),
+      });
+    }
+
+    const providedKey = providedAdminKey(event);
     if (providedKey && !isAdmin(event)) {
       return json(401, { error: "Incorrect admin password." });
     }
